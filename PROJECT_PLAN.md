@@ -27,7 +27,8 @@
 | Framework | React Native (Expo) | SDK 52 |
 | Language | TypeScript | 5.x |
 | State | Zustand | 5.x |
-| Backend | Supabase | - |
+| Backend | Firebase (Auth + Firestore) | 10.x |
+| Functions | Firebase Cloud Functions | - |
 | API | OpenWeatherMap One Call API 3.0 | - |
 | Navigation | Expo Router | 4.x |
 
@@ -35,13 +36,13 @@
 
 ```
 ┌─────────────┐      ┌──────────────────────┐      ┌─────────────────┐
-│   ユーザー   │ ───→ │  Supabase Edge Func  │ ───→ │ OpenWeatherMap  │
+│   ユーザー   │ ───→ │  Cloud Functions     │ ───→ │ OpenWeatherMap  │
 │  (N人)      │      │   (プロキシ+キャッシュ)  │      │     API        │
 └─────────────┘      └──────────────────────┘      └─────────────────┘
                               │
                               ↓
                      ┌──────────────────┐
-                     │  Supabase DB     │
+                     │  Firestore       │
                      │  weather_cache   │
                      │  (地域単位保存)   │
                      └──────────────────┘
@@ -168,40 +169,59 @@ borderRadius: {
 
 ## 5. データモデル
 
-### Supabase Tables
+### Firestore Collections
 
-```sql
--- ユーザー
-create table users (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamp with time zone default now(),
-  email text unique,
-  prefecture text,
-  city text
-);
+```typescript
+// users/{userId}
+interface UserDoc {
+  email: string;
+  prefecture: string;
+  city: string;
+  createdAt: Timestamp;
+}
 
--- 体調記録
-create table health_logs (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references users(id) on delete cascade,
-  created_at timestamp with time zone default now(),
-  severity int not null check (severity between 0 and 3),
-  -- 0: なし, 1: 少し痛む, 2: 痛い, 3: かなり痛い
-  pressure_hpa int,
-  memo text,
-  location_prefecture text,
-  location_city text
-);
+// users/{userId}/health_logs/{logId}
+interface HealthLogDoc {
+  severity: 0 | 1 | 2 | 3;  // 0: なし, 1: 少し痛む, 2: 痛い, 3: かなり痛い
+  pressureHpa: number | null;
+  memo: string | null;
+  locationPrefecture: string | null;
+  locationCity: string | null;
+  createdAt: Timestamp;
+}
 
--- 気象キャッシュ
-create table weather_cache (
-  id uuid primary key default gen_random_uuid(),
-  prefecture text not null,
-  city text not null,
-  data jsonb not null,
-  fetched_at timestamp with time zone default now(),
-  unique(prefecture, city)
-);
+// weather_cache/{prefecture}_{city}
+interface WeatherCacheDoc {
+  prefecture: string;
+  city: string;
+  data: WeatherData;
+  fetchedAt: Timestamp;
+}
+```
+
+### Firestore Security Rules
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザードキュメント
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // 体調記録（サブコレクション）
+      match /health_logs/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // 気象キャッシュ（読み取り専用、書き込みはCloud Functionsのみ）
+    match /weather_cache/{cacheId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // Cloud Functionsからのみ書き込み
+    }
+  }
+}
 ```
 
 ### Zustand Store
@@ -288,7 +308,7 @@ src/
 ├── stores/
 │   └── appStore.ts
 ├── services/
-│   ├── supabase.ts
+│   ├── firebase.ts
 │   └── weather.ts
 ├── theme/
 │   ├── colors.ts
@@ -310,7 +330,7 @@ src/
 3. Expo プロジェクトを初期化
 4. プロジェクト構造（ディレクトリ）を作成
 5. 基本コンポーネントのスケルトンを作成
-6. Supabase 接続設定
+6. Firebase 接続設定
 7. 各画面の実装
 
 ---
@@ -319,5 +339,5 @@ src/
 
 - **ハードコード禁止**: 色・フォント・間隔は全てテーマファイルから参照
 - **Material Symbols**: アイコンは細線ミニマル（weight: 300-400）
-- **RLS必須**: Supabaseのセキュリティ設定を徹底
+- **Security Rules必須**: Firestoreのセキュリティルールを徹底
 - **医療免責**: アプリ内で「医学的診断ではない」旨を明記
