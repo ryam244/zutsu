@@ -1,12 +1,76 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Modal, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { colors, fontSize, fontWeight, spacing, borderRadius, shadows, layout } from '@/theme';
+import { useAppStore } from '@/stores/appStore';
+
+// 都道府県リスト
+const PREFECTURES = [
+  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
+  '岐阜県', '静岡県', '愛知県', '三重県',
+  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
+  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
+  '徳島県', '香川県', '愛媛県', '高知県',
+  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
+];
+
+// 感度レベル
+const SENSITIVITY_LABELS = {
+  low: '低',
+  normal: '標準',
+  high: '高',
+} as const;
 
 export default function SettingsScreen() {
-  const [pressureAlert, setPressureAlert] = useState(true);
-  const [cautionAlert, setCautionAlert] = useState(false);
-  const [medicationReminder, setMedicationReminder] = useState(true);
+  const settings = useAppStore((state) => state.settings);
+  const updateNotificationSettings = useAppStore((state) => state.updateNotificationSettings);
+  const updateMedicationSettings = useAppStore((state) => state.updateMedicationSettings);
+  const updateSettings = useAppStore((state) => state.updateSettings);
+
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  // 通知設定の更新
+  const handlePressureAlertChange = (value: boolean) => {
+    updateNotificationSettings({ pressureAlert: value });
+  };
+
+  const handleCautionAlertChange = (value: boolean) => {
+    updateNotificationSettings({ cautionAlert: value });
+  };
+
+  const handleMedicationReminderChange = (value: boolean) => {
+    updateMedicationSettings({ reminderEnabled: value });
+  };
+
+  // 感度の切り替え
+  const handleSensitivityChange = () => {
+    const levels: Array<'low' | 'normal' | 'high'> = ['low', 'normal', 'high'];
+    const currentIndex = levels.indexOf(settings.notifications.sensitivity);
+    const nextIndex = (currentIndex + 1) % levels.length;
+    updateNotificationSettings({ sensitivity: levels[nextIndex] });
+  };
+
+  // 地域選択
+  const handleSelectPrefecture = (prefecture: string) => {
+    updateSettings({
+      location: { prefecture, city: '' },
+    });
+    setShowLocationPicker(false);
+  };
+
+  // 感度に応じたスライダー位置
+  const getSensitivityPosition = () => {
+    switch (settings.notifications.sensitivity) {
+      case 'low':
+        return '15%';
+      case 'normal':
+        return '50%';
+      case 'high':
+        return '85%';
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -43,13 +107,15 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>地域と予報</Text>
           <View style={styles.sectionContent}>
-            <Pressable style={styles.settingItem}>
+            <Pressable style={styles.settingItem} onPress={() => setShowLocationPicker(true)}>
               <View style={[styles.settingIcon, { backgroundColor: 'rgba(96, 165, 250, 0.1)' }]}>
                 <Text style={styles.settingIconText}>📍</Text>
               </View>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>メインの地域</Text>
-                <Text style={styles.settingValue}>東京都 千代田区</Text>
+                <Text style={styles.settingValue}>
+                  {settings.location.prefecture} {settings.location.city}
+                </Text>
               </View>
               <View style={styles.settingAction}>
                 <Text style={styles.settingActionText}>変更</Text>
@@ -62,7 +128,9 @@ export default function SettingsScreen() {
         {/* スマート通知 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>スマート通知</Text>
+            <Text style={[styles.sectionTitle, { marginBottom: 0, paddingHorizontal: 0 }]}>
+              スマート通知
+            </Text>
             <Text style={styles.sectionInfo}>ℹ️</Text>
           </View>
           <View style={styles.sectionContent}>
@@ -77,8 +145,8 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <Switch
-                value={pressureAlert}
-                onValueChange={setPressureAlert}
+                value={settings.notifications.pressureAlert}
+                onValueChange={handlePressureAlertChange}
                 trackColor={{ false: colors.bgSoft, true: colors.success }}
                 thumbColor={colors.surface}
               />
@@ -95,24 +163,26 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <Switch
-                value={cautionAlert}
-                onValueChange={setCautionAlert}
+                value={settings.notifications.cautionAlert}
+                onValueChange={handleCautionAlertChange}
                 trackColor={{ false: colors.bgSoft, true: colors.success }}
                 thumbColor={colors.surface}
               />
             </View>
 
             {/* 感度スライダー */}
-            <View style={styles.sliderSection}>
+            <Pressable style={styles.sliderSection} onPress={handleSensitivityChange}>
               <View style={styles.sliderHeader}>
                 <Text style={styles.sliderLabel}>低下の感度</Text>
                 <View style={styles.sliderBadge}>
-                  <Text style={styles.sliderBadgeText}>標準</Text>
+                  <Text style={styles.sliderBadgeText}>
+                    {SENSITIVITY_LABELS[settings.notifications.sensitivity]}
+                  </Text>
                 </View>
               </View>
               <View style={styles.sliderTrack}>
-                <View style={styles.sliderFill} />
-                <View style={styles.sliderThumb}>
+                <View style={[styles.sliderFill, { width: getSensitivityPosition() }]} />
+                <View style={[styles.sliderThumb, { left: getSensitivityPosition() }]}>
                   <View style={styles.sliderThumbDot} />
                 </View>
               </View>
@@ -120,7 +190,7 @@ export default function SettingsScreen() {
                 <Text style={styles.sliderEndLabel}>大きな変化のみ</Text>
                 <Text style={styles.sliderEndLabel}>わずかな変化も</Text>
               </View>
-            </View>
+            </Pressable>
           </View>
         </View>
 
@@ -139,8 +209,8 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <Switch
-                value={medicationReminder}
-                onValueChange={setMedicationReminder}
+                value={settings.medication.reminderEnabled}
+                onValueChange={handleMedicationReminderChange}
                 trackColor={{ false: colors.bgSoft, true: colors.success }}
                 thumbColor={colors.surface}
               />
@@ -154,9 +224,32 @@ export default function SettingsScreen() {
                 <Text style={styles.settingLabel}>通知スケジュール</Text>
               </View>
               <View style={styles.settingAction}>
-                <Text style={styles.settingActionText}>08:00, 20:00</Text>
+                <Text style={styles.settingActionText}>
+                  {settings.medication.schedule.join(', ')}
+                </Text>
                 <Text style={styles.settingArrow}>›</Text>
               </View>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* データ管理 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>データ管理</Text>
+          <View style={styles.sectionContent}>
+            <Pressable style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                <Text style={styles.settingIconText}>🗑️</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: colors.dangerDark }]}>
+                  記録データを削除
+                </Text>
+                <Text style={styles.settingDescription}>
+                  すべての体調記録を削除します
+                </Text>
+              </View>
+              <Text style={styles.settingArrow}>›</Text>
             </Pressable>
           </View>
         </View>
@@ -172,8 +265,55 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
           <Text style={styles.version}>頭痛ログ バージョン 1.0.0</Text>
+          <Text style={styles.disclaimer}>
+            ※ 本アプリは医学的診断を目的としたものではありません
+          </Text>
         </View>
       </ScrollView>
+
+      {/* 地域選択モーダル */}
+      <Modal
+        visible={showLocationPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLocationPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>地域を選択</Text>
+              <Pressable onPress={() => setShowLocationPicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              data={PREFECTURES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.modalItem,
+                    settings.location.prefecture === item && styles.modalItemSelected,
+                  ]}
+                  onPress={() => handleSelectPrefecture(item)}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      settings.location.prefecture === item && styles.modalItemTextSelected,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  {settings.location.prefecture === item && (
+                    <Text style={styles.modalItemCheck}>✓</Text>
+                  )}
+                </Pressable>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -374,14 +514,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: '50%',
     height: '100%',
     backgroundColor: 'rgba(96, 165, 250, 0.3)',
     borderRadius: borderRadius.full,
   },
   sliderThumb: {
     position: 'absolute',
-    left: '50%',
     top: '50%',
     width: 24,
     height: 24,
@@ -427,5 +565,66 @@ const styles = StyleSheet.create({
   version: {
     fontSize: 11,
     color: colors.textLight,
+  },
+  disclaimer: {
+    fontSize: 10,
+    color: colors.textLight,
+    textAlign: 'center',
+    paddingHorizontal: spacing['2xl'],
+  },
+  // モーダル
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing['2xl'],
+    paddingVertical: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  modalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: colors.textDark,
+  },
+  modalClose: {
+    fontSize: 20,
+    color: colors.textMuted,
+    padding: spacing.md,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing['2xl'],
+    paddingVertical: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  modalItemSelected: {
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+  },
+  modalItemText: {
+    fontSize: fontSize.base,
+    color: colors.textMain,
+  },
+  modalItemTextSelected: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+  modalItemCheck: {
+    fontSize: 18,
+    color: colors.primary,
   },
 });
