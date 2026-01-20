@@ -1,8 +1,27 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fontSize, fontWeight, spacing, borderRadius, shadows, layout } from '@/theme';
+import { useState } from 'react';
+import { colors, fontSize, fontWeight, spacing, borderRadius, shadows } from '@/theme';
+import { useAppStore } from '@/stores/appStore';
+import PressureGraph, { type PressurePoint } from '@/components/dashboard/PressureGraph';
 
-// 仮の気圧データ
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const GRAPH_WIDTH = SCREEN_WIDTH - spacing.xl * 2 - spacing['2xl'] * 2;
+
+// モックの気圧データ（24時間分）
+const MOCK_PRESSURE_DATA: PressurePoint[] = [
+  { time: '現在', pressure: 1013, status: 'stable' },
+  { time: '09:00', pressure: 1015, status: 'stable' },
+  { time: '12:00', pressure: 1010, status: 'caution' },
+  { time: '15:00', pressure: 1002, status: 'danger' },
+  { time: '18:00', pressure: 998, status: 'danger' },
+  { time: '21:00', pressure: 1005, status: 'caution' },
+  { time: '00:00', pressure: 1010, status: 'stable' },
+  { time: '03:00', pressure: 1012, status: 'stable' },
+  { time: '06:00', pressure: 1015, status: 'stable' },
+];
+
+// 仮の気圧情報
 const MOCK_PRESSURE = {
   current: 1013,
   change: -5,
@@ -20,10 +39,41 @@ const SEVERITY_OPTIONS = [
 ] as const;
 
 export default function DashboardScreen() {
-  const handleSeverityPress = (level: number) => {
-    // TODO: 体調記録を保存
-    console.log('Selected severity:', level);
+  const [selectedSeverity, setSelectedSeverity] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const addHealthLog = useAppStore((state) => state.addHealthLog);
+  const settings = useAppStore((state) => state.settings);
+
+  const handleSeverityPress = async (level: number) => {
+    if (isRecording) return;
+
+    setSelectedSeverity(level);
+    setIsRecording(true);
+
+    // ローカルストレージに保存
+    const newLog = {
+      id: Date.now().toString(),
+      userId: 'local',
+      createdAt: new Date().toISOString(),
+      severity: level as 0 | 1 | 2 | 3,
+      pressureHpa: MOCK_PRESSURE.current,
+      memo: null,
+      locationPrefecture: settings.location.prefecture,
+      locationCity: settings.location.city,
+    };
+
+    addHealthLog(newLog);
+
+    // フィードバック後にリセット
+    setTimeout(() => {
+      setSelectedSeverity(null);
+      setIsRecording(false);
+    }, 1500);
   };
+
+  // 現在の日付
+  const today = new Date();
+  const dateString = `${today.getMonth() + 1}月${today.getDate()}日`;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -31,7 +81,9 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.locationIcon}>📍</Text>
-          <Text style={styles.locationText}>東京都 港区 • 1月20日</Text>
+          <Text style={styles.locationText}>
+            {settings.location.prefecture} {settings.location.city} • {dateString}
+          </Text>
         </View>
         <Pressable style={styles.notificationButton}>
           <Text style={styles.notificationIcon}>🔔</Text>
@@ -74,22 +126,8 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {/* 気圧グラフ（プレースホルダー） */}
-          <View style={styles.graphContainer}>
-            <View style={styles.graphPlaceholder}>
-              <Text style={styles.graphPlaceholderText}>📈 気圧グラフ</Text>
-              <Text style={styles.graphPlaceholderSubtext}>
-                ここに24時間の気圧変動グラフを表示
-              </Text>
-            </View>
-            <View style={styles.graphTimeLabels}>
-              <Text style={styles.graphTimeLabel}>現在</Text>
-              <Text style={styles.graphTimeLabel}>12:00</Text>
-              <Text style={styles.graphTimeLabel}>18:00</Text>
-              <Text style={styles.graphTimeLabel}>00:00</Text>
-              <Text style={styles.graphTimeLabel}>06:00</Text>
-            </View>
-          </View>
+          {/* 気圧グラフ */}
+          <PressureGraph data={MOCK_PRESSURE_DATA} width={GRAPH_WIDTH} />
 
           {/* 凡例 */}
           <View style={styles.legend}>
@@ -118,11 +156,16 @@ export default function DashboardScreen() {
                 style={({ pressed }) => [
                   styles.healthButton,
                   pressed && styles.healthButtonPressed,
+                  selectedSeverity === option.level && styles.healthButtonSelected,
                 ]}
                 onPress={() => handleSeverityPress(option.level)}
+                disabled={isRecording}
               >
                 <Text style={styles.healthEmoji}>{option.emoji}</Text>
                 <Text style={styles.healthLabel}>{option.label}</Text>
+                {selectedSeverity === option.level && (
+                  <Text style={styles.recordedText}>記録しました ✓</Text>
+                )}
               </Pressable>
             ))}
           </View>
@@ -269,36 +312,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
-  graphContainer: {
-    marginBottom: spacing.xl,
-  },
-  graphPlaceholder: {
-    height: 160,
-    backgroundColor: colors.bgSoft,
-    borderRadius: borderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  graphPlaceholderText: {
-    fontSize: fontSize.lg,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  graphPlaceholderSubtext: {
-    fontSize: fontSize.xs,
-    color: colors.textLight,
-  },
-  graphTimeLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-  },
-  graphTimeLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    color: colors.textLight,
-    textTransform: 'uppercase',
-  },
   legend: {
     flexDirection: 'row',
     gap: spacing.xl,
@@ -347,6 +360,10 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.95 }],
     opacity: 0.9,
   },
+  healthButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+  },
   healthEmoji: {
     fontSize: 36,
     marginBottom: spacing.md,
@@ -355,5 +372,11 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.bold,
     color: colors.textMain,
+  },
+  recordedText: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    marginTop: spacing.sm,
+    fontWeight: fontWeight.medium,
   },
 });

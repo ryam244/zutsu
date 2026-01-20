@@ -1,60 +1,102 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { colors, fontSize, fontWeight, spacing, borderRadius, shadows } from '@/theme';
+import { useAppStore } from '@/stores/appStore';
+import type { HealthLog, SeverityLevel } from '@/types';
 
-// 仮の履歴データ
-const MOCK_LOGS = [
-  {
-    id: '1',
-    date: '2026年1月20日 (月)',
-    records: [
-      {
-        id: '1-1',
-        time: '10:45 AM',
-        severity: 3,
-        label: 'かなり痛む',
-        pressure: 1002,
-        pressureStatus: 'danger',
-        memo: '雨が降り始めた直後から。目の奥がズキズキするような強い痛み。',
-      },
-      {
-        id: '1-2',
-        time: '02:30 PM',
-        severity: 1,
-        label: '少し痛む',
-        pressure: 1014,
-        pressureStatus: 'stable',
-        memo: null,
-      },
-    ],
-  },
-  {
-    id: '2',
-    date: '2026年1月19日 (日)',
-    records: [
-      {
-        id: '2-1',
-        time: '08:15 PM',
-        severity: 2,
-        label: 'ふつうの痛み',
-        pressure: 1005,
-        pressureStatus: 'caution',
-        memo: '夕方からずっと気圧が低い。体がだる重い感じがする。',
-      },
-    ],
-  },
-];
+const SEVERITY_LABELS: Record<SeverityLevel, string> = {
+  0: 'なし',
+  1: '少し痛む',
+  2: '痛い',
+  3: 'かなり痛い',
+};
 
-const SEVERITY_ICONS = ['😊', '😐', '😫', '🤮'];
+const SEVERITY_ICONS: Record<SeverityLevel, string> = {
+  0: '😊',
+  1: '😐',
+  2: '😫',
+  3: '🤮',
+};
+
+// 気圧状態を判定
+const getPressureStatus = (pressure: number | null): 'danger' | 'caution' | 'stable' => {
+  if (!pressure) return 'stable';
+  if (pressure < 1005) return 'danger';
+  if (pressure < 1010) return 'caution';
+  return 'stable';
+};
+
+// 日付でグループ化
+const groupLogsByDate = (logs: HealthLog[]) => {
+  const groups: Record<string, HealthLog[]> = {};
+
+  logs.forEach((log) => {
+    const date = new Date(log.createdAt);
+    const dateKey = date.toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    });
+
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(log);
+  });
+
+  return Object.entries(groups).map(([date, records]) => ({
+    date,
+    records: records.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ),
+  }));
+};
+
+// 時間をフォーマット
+const formatTime = (isoString: string) => {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function HistoryScreen() {
+  const router = useRouter();
+  const healthLogs = useAppStore((state) => state.healthLogs);
+  const [filter, setFilter] = useState<'weekly' | 'monthly'>('weekly');
+
+  // 記録をグループ化
+  const groupedLogs = useMemo(() => groupLogsByDate(healthLogs), [healthLogs]);
+
+  // 相関分析（簡易版）
+  const correlation = useMemo(() => {
+    if (healthLogs.length === 0) return { rate: 0, trigger: '---' };
+
+    const logsWithPressure = healthLogs.filter((log) => log.pressureHpa !== null);
+    const lowPressureLogs = logsWithPressure.filter(
+      (log) => log.pressureHpa !== null && log.pressureHpa < 1010
+    );
+
+    const rate =
+      logsWithPressure.length > 0
+        ? Math.round((lowPressureLogs.length / logsWithPressure.length) * 100)
+        : 0;
+
+    return {
+      rate,
+      trigger: rate > 50 ? '低気圧' : '不明',
+    };
+  }, [healthLogs]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* ヘッダー */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </Pressable>
+        <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>記録履歴</Text>
         <Pressable style={styles.helpButton}>
           <Text style={styles.helpIcon}>❓</Text>
@@ -64,11 +106,25 @@ export default function HistoryScreen() {
       {/* フィルタータブ */}
       <View style={styles.filterContainer}>
         <View style={styles.filterTabs}>
-          <Pressable style={[styles.filterTab, styles.filterTabActive]}>
-            <Text style={[styles.filterTabText, styles.filterTabTextActive]}>週間</Text>
+          <Pressable
+            style={[styles.filterTab, filter === 'weekly' && styles.filterTabActive]}
+            onPress={() => setFilter('weekly')}
+          >
+            <Text
+              style={[styles.filterTabText, filter === 'weekly' && styles.filterTabTextActive]}
+            >
+              週間
+            </Text>
           </Pressable>
-          <Pressable style={styles.filterTab}>
-            <Text style={styles.filterTabText}>月間</Text>
+          <Pressable
+            style={[styles.filterTab, filter === 'monthly' && styles.filterTabActive]}
+            onPress={() => setFilter('monthly')}
+          >
+            <Text
+              style={[styles.filterTabText, filter === 'monthly' && styles.filterTabTextActive]}
+            >
+              月間
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -87,93 +143,125 @@ export default function HistoryScreen() {
           <View style={styles.correlationCards}>
             <View style={styles.correlationCard}>
               <Text style={styles.correlationLabel}>気圧との関連度</Text>
-              <Text style={styles.correlationValue}>85%</Text>
+              <Text style={styles.correlationValue}>
+                {healthLogs.length > 0 ? `${correlation.rate}%` : '---'}
+              </Text>
               <View style={styles.correlationTrend}>
                 <Text style={styles.trendIcon}>📈</Text>
-                <Text style={styles.trendText}>非常に関連が強い</Text>
+                <Text style={styles.trendText}>
+                  {correlation.rate > 70
+                    ? '非常に関連が強い'
+                    : correlation.rate > 40
+                      ? '関連あり'
+                      : 'データ収集中'}
+                </Text>
               </View>
             </View>
             <View style={styles.correlationCard}>
               <Text style={styles.correlationLabel}>主なトリガー</Text>
-              <Text style={styles.triggerValue}>爆弾低気圧</Text>
-              <Text style={styles.triggerNote}>1010hPa以下で発生</Text>
+              <Text style={styles.triggerValue}>{correlation.trigger}</Text>
+              <Text style={styles.triggerNote}>
+                {correlation.rate > 50 ? '1010hPa以下で発生' : '記録を続けてください'}
+              </Text>
             </View>
           </View>
-          <View style={styles.insightCard}>
-            <Text style={styles.insightText}>
-              記録の多くが急激な気圧低下時に発生しています。気圧の変化に非常に敏感なタイプかもしれません。
-            </Text>
-          </View>
+          {healthLogs.length > 0 && (
+            <View style={styles.insightCard}>
+              <Text style={styles.insightText}>
+                {correlation.rate > 50
+                  ? '記録の多くが低気圧時に発生しています。気圧の変化に敏感なタイプかもしれません。'
+                  : '記録を続けることで、あなたの頭痛パターンが見えてきます。'}
+              </Text>
+            </View>
+          )}
         </View>
 
+        {/* 記録がない場合 */}
+        {groupedLogs.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>まだ記録がありません</Text>
+            <Text style={styles.emptyText}>
+              ホーム画面から体調を記録すると、ここに履歴が表示されます
+            </Text>
+          </View>
+        )}
+
         {/* タイムライン */}
-        {MOCK_LOGS.map((dayLog) => (
-          <View key={dayLog.id}>
+        {groupedLogs.map((dayLog) => (
+          <View key={dayLog.date}>
             <Text style={styles.dateLabel}>{dayLog.date}</Text>
             <View style={styles.timeline}>
-              {dayLog.records.map((record, index) => (
-                <View key={record.id} style={styles.timelineItem}>
-                  <View style={styles.timelineLine}>
-                    <View
-                      style={[
-                        styles.timelineIcon,
-                        record.severity >= 2
-                          ? styles.timelineIconDanger
-                          : styles.timelineIconNormal,
-                      ]}
-                    >
-                      <Text style={styles.timelineIconText}>
-                        {record.severity >= 3 ? '⚡' : record.severity >= 2 ? '⚠️' : '😐'}
-                      </Text>
-                    </View>
-                    {index < dayLog.records.length - 1 && (
-                      <View style={styles.timelineConnector} />
-                    )}
-                  </View>
-                  <View style={styles.timelineContent}>
-                    <View style={styles.timelineHeader}>
-                      <View>
-                        <Text style={styles.timeText}>{record.time}</Text>
-                        <Text style={styles.severityLabel}>{record.label}</Text>
-                      </View>
+              {dayLog.records.map((record, index) => {
+                const pressureStatus = getPressureStatus(record.pressureHpa);
+                return (
+                  <View key={record.id} style={styles.timelineItem}>
+                    <View style={styles.timelineLine}>
                       <View
                         style={[
-                          styles.statusBadge,
-                          record.pressureStatus === 'danger' && styles.statusBadgeDanger,
-                          record.pressureStatus === 'stable' && styles.statusBadgeStable,
+                          styles.timelineIcon,
+                          record.severity >= 2
+                            ? styles.timelineIconDanger
+                            : styles.timelineIconNormal,
                         ]}
                       >
-                        <Text style={styles.statusBadgeText}>
-                          {record.pressureStatus === 'danger'
-                            ? '急降下'
-                            : record.pressureStatus === 'caution'
-                              ? '低気圧'
-                              : '安定'}
+                        <Text style={styles.timelineIconText}>
+                          {SEVERITY_ICONS[record.severity as SeverityLevel]}
                         </Text>
                       </View>
-                    </View>
-                    <View style={styles.recordCard}>
-                      <View style={styles.pressureRow}>
-                        <Text style={styles.pressureIcon}>📊</Text>
-                        <Text style={styles.pressureText}>{record.pressure} hPa</Text>
-                        {record.severity >= 2 && (
-                          <Text style={styles.warningTag}>要注意</Text>
-                        )}
-                      </View>
-                      {record.memo && (
-                        <Text style={styles.memoText}>「{record.memo}」</Text>
+                      {index < dayLog.records.length - 1 && (
+                        <View style={styles.timelineConnector} />
                       )}
                     </View>
+                    <View style={styles.timelineContent}>
+                      <View style={styles.timelineHeader}>
+                        <View>
+                          <Text style={styles.timeText}>{formatTime(record.createdAt)}</Text>
+                          <Text style={styles.severityLabel}>
+                            {SEVERITY_LABELS[record.severity as SeverityLevel]}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            pressureStatus === 'danger' && styles.statusBadgeDanger,
+                            pressureStatus === 'stable' && styles.statusBadgeStable,
+                          ]}
+                        >
+                          <Text style={styles.statusBadgeText}>
+                            {pressureStatus === 'danger'
+                              ? '急降下'
+                              : pressureStatus === 'caution'
+                                ? '低気圧'
+                                : '安定'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.recordCard}>
+                        <View style={styles.pressureRow}>
+                          <Text style={styles.pressureIcon}>📊</Text>
+                          <Text style={styles.pressureText}>
+                            {record.pressureHpa ?? '---'} hPa
+                          </Text>
+                          {record.severity >= 2 && (
+                            <Text style={styles.warningTag}>要注意</Text>
+                          )}
+                        </View>
+                        {record.memo && (
+                          <Text style={styles.memoText}>「{record.memo}」</Text>
+                        )}
+                      </View>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         ))}
       </ScrollView>
 
       {/* FAB */}
-      <Pressable style={styles.fab}>
+      <Pressable style={styles.fab} onPress={() => router.push('/')}>
         <Text style={styles.fabIcon}>+</Text>
       </Pressable>
     </SafeAreaView>
@@ -195,15 +283,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: {
+  headerSpacer: {
     width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 20,
-    color: colors.primary,
   },
   headerTitle: {
     fontSize: fontSize.title,
@@ -330,6 +411,27 @@ const styles = StyleSheet.create({
     color: colors.textMain,
     lineHeight: 18,
   },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing['4xl'],
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: colors.textDark,
+    marginBottom: spacing.md,
+  },
+  emptyText: {
+    fontSize: fontSize.sm,
+    color: colors.textSub,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   dateLabel: {
     fontSize: fontSize.xs,
     fontWeight: fontWeight.bold,
@@ -403,10 +505,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(100, 181, 246, 0.2)',
   },
   statusBadgeDanger: {
-    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    backgroundColor: 'rgba(252, 165, 165, 0.1)',
+    borderColor: 'rgba(252, 165, 165, 0.2)',
   },
   statusBadgeStable: {
     backgroundColor: colors.bgSoft,
+    borderColor: colors.divider,
   },
   statusBadgeText: {
     fontSize: fontSize.xs,
