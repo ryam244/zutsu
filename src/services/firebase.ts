@@ -3,7 +3,7 @@
  * Expo + Firebase Web SDK 互換
  */
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -17,17 +17,6 @@ import {
   limit,
   Timestamp,
 } from 'firebase/firestore';
-import {
-  initializeAuth,
-  getAuth,
-  getReactNativePersistence,
-  signInAnonymously,
-  onAuthStateChanged,
-  Auth,
-  User,
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 // Firebase 設定
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '',
@@ -39,25 +28,47 @@ const firebaseConfig = {
 };
 
 // Firebase アプリの初期化
-let app: FirebaseApp;
-let auth: Auth;
-
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-  // React Native では initializeAuth を使用
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} else {
-  app = getApp();
-  auth = getAuth(app);
-}
-
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
+
+// Auth は遅延初期化（Expo Go互換性のため）
+let authPromise: Promise<any> | null = null;
+
+const getAuthLazy = async () => {
+  if (!authPromise) {
+    authPromise = (async () => {
+      try {
+        const authModule = await import('firebase/auth');
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+
+        // 既に初期化済みかチェック
+        try {
+          return authModule.getAuth(app);
+        } catch {
+          // 初期化されていない場合は initializeAuth を使用
+          return authModule.initializeAuth(app, {
+            persistence: authModule.getReactNativePersistence(AsyncStorage),
+          });
+        }
+      } catch (error) {
+        console.error('Auth lazy init error:', error);
+        return null;
+      }
+    })();
+  }
+  return authPromise;
+};
 
 // 匿名認証でサインイン
 export const signInAnonymouslyUser = async () => {
   try {
+    const auth = await getAuthLazy();
+    if (!auth) {
+      console.log('Auth not available, skipping sign in');
+      return null;
+    }
+
+    const { signInAnonymously } = await import('firebase/auth');
     const result = await signInAnonymously(auth);
     return result.user;
   } catch (error) {
@@ -67,8 +78,22 @@ export const signInAnonymouslyUser = async () => {
 };
 
 // 認証状態の監視
-export const subscribeToAuthState = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, callback);
+export const subscribeToAuthState = (callback: (user: any) => void) => {
+  let unsubscribe = () => {};
+
+  getAuthLazy().then(async (auth) => {
+    if (!auth) {
+      callback(null);
+      return;
+    }
+
+    const { onAuthStateChanged } = await import('firebase/auth');
+    unsubscribe = onAuthStateChanged(auth, callback);
+  }).catch(() => {
+    callback(null);
+  });
+
+  return () => unsubscribe();
 };
 
 // Firestore ヘルパー関数
@@ -141,5 +166,5 @@ export const firestoreHelpers = {
   },
 };
 
-export { db, auth, Timestamp };
+export { db, Timestamp };
 export default app;
