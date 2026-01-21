@@ -1,20 +1,24 @@
 /**
- * Zutsu-Log Cloud Functions
+ * Zutsu-Log Cloud Functions (v2)
  * 気象データのプロキシ + Firestoreキャッシュ
  */
 
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { defineString } from 'firebase-functions/params';
+import { initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-admin.initializeApp();
+initializeApp();
 
-const db = admin.firestore();
+const db = getFirestore();
+
+// 環境変数からAPIキーを取得
+const openweatherApiKey = defineString('OPENWEATHER_API_KEY');
 
 // キャッシュ有効期限（6時間）
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 // OpenWeatherMap API設定
-const OPENWEATHER_API_KEY = functions.config().openweather?.api_key || '';
 const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
 // 都道府県座標マッピング
@@ -85,8 +89,8 @@ const calculateChangeRate = (current: number, previous: number): number => {
 };
 
 // OpenWeatherMapからデータを取得
-async function fetchFromOpenWeather(lat: number, lon: number) {
-  const url = `${OPENWEATHER_BASE_URL}?lat=${lat}&lon=${lon}&exclude=minutely,daily,alerts&units=metric&appid=${OPENWEATHER_API_KEY}`;
+async function fetchFromOpenWeather(lat: number, lon: number, apiKey: string) {
+  const url = `${OPENWEATHER_BASE_URL}?lat=${lat}&lon=${lon}&exclude=minutely,daily,alerts&units=metric&appid=${apiKey}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -130,17 +134,17 @@ function transformWeatherData(data: any) {
  * 気象データ取得 Cloud Function
  * Firestoreキャッシュを活用してAPIコールを最小化
  */
-export const getWeather = functions
-  .region('asia-northeast1')
-  .https.onCall(async (data, context) => {
+export const getWeather = onCall(
+  { region: 'asia-northeast1' },
+  async (request) => {
     // 認証チェック
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', '認証が必要です');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const { prefecture } = data;
+    const { prefecture } = request.data as { prefecture: string };
     if (!prefecture || !PREFECTURE_COORDINATES[prefecture]) {
-      throw new functions.https.HttpsError('invalid-argument', '無効な都道府県です');
+      throw new HttpsError('invalid-argument', '無効な都道府県です');
     }
 
     const cacheId = prefecture;
@@ -161,27 +165,28 @@ export const getWeather = functions
           return {
             ...cacheData?.data,
             fromCache: true,
-            cacheAge: Math.round((now.getTime() - fetchedAt.getTime()) / 1000 / 60), // 分
+            cacheAge: Math.round((now.getTime() - fetchedAt.getTime()) / 1000 / 60),
           };
         }
       }
 
-      // APIキーがない場合はエラー
-      if (!OPENWEATHER_API_KEY) {
-        throw new functions.https.HttpsError('failed-precondition', 'API key not configured');
+      // APIキーを取得
+      const apiKey = openweatherApiKey.value();
+      if (!apiKey) {
+        throw new HttpsError('failed-precondition', 'API key not configured');
       }
 
       // OpenWeatherMapから取得
       console.log(`Fetching from OpenWeatherMap for ${prefecture}`);
       const coords = PREFECTURE_COORDINATES[prefecture];
-      const rawData = await fetchFromOpenWeather(coords.lat, coords.lon);
+      const rawData = await fetchFromOpenWeather(coords.lat, coords.lon, apiKey);
       const weatherData = transformWeatherData(rawData);
 
       // キャッシュに保存
       await cacheRef.set({
         prefecture,
         data: weatherData,
-        fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        fetchedAt: FieldValue.serverTimestamp(),
       });
 
       return {
@@ -190,6 +195,7 @@ export const getWeather = functions
       };
     } catch (error) {
       console.error('Weather fetch error:', error);
-      throw new functions.https.HttpsError('internal', '気象データの取得に失敗しました');
+      throw new HttpsError('internal', '気象データの取得に失敗しました');
     }
-  });
+  }
+);
