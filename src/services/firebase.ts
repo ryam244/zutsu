@@ -5,12 +5,14 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import {
   initializeAuth,
-  getReactNativePersistence,
   signInAnonymously,
   onAuthStateChanged,
   type User,
   type Auth,
 } from 'firebase/auth';
+// React Native 用の persistence
+// @ts-ignore - React Native specific import
+import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
 import {
   getFirestore,
   collection,
