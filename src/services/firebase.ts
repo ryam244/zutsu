@@ -4,15 +4,12 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import {
-  initializeAuth,
+  getAuth,
   signInAnonymously,
   onAuthStateChanged,
   type User,
   type Auth,
 } from 'firebase/auth';
-// React Native 用の persistence
-// @ts-ignore - React Native specific import
-import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
 import {
   getFirestore,
   collection,
@@ -27,7 +24,6 @@ import {
   Timestamp,
   type Firestore,
 } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase 設定
 const firebaseConfig = {
@@ -39,32 +35,19 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '',
 };
 
-// シングルトンパターンでFirebaseを初期化
+// Firebase アプリの初期化
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
-function initializeFirebase() {
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-    db = getFirestore(app);
-  } else {
-    app = getApp();
-    // 既に初期化されている場合は、既存のインスタンスを使用
-    // @ts-ignore - Firebase内部のauth取得
-    auth = (app as any)._container?.getProvider('auth')?.getImmediate() ||
-      initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
-    db = getFirestore(app);
-  }
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
 
-// 初期化を実行
-initializeFirebase();
+auth = getAuth(app);
+db = getFirestore(app);
 
 // 匿名認証でサインイン
 export const signInAnonymouslyUser = async (): Promise<User | null> => {
@@ -148,7 +131,6 @@ export const firestoreHelpers = {
     const fetchedAt = data.fetchedAt?.toDate();
     const now = new Date();
 
-    // 30分以上経過していたらキャッシュ無効
     if (fetchedAt && now.getTime() - fetchedAt.getTime() > 30 * 60 * 1000) {
       return null;
     }
