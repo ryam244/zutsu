@@ -1,15 +1,9 @@
 /**
  * Firebase 初期化・設定
+ * Expo + Firebase Web SDK 互換
  */
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import {
-  getAuth,
-  signInAnonymously,
-  onAuthStateChanged,
-  type User,
-  type Auth,
-} from 'firebase/auth';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -22,7 +16,6 @@ import {
   orderBy,
   limit,
   Timestamp,
-  type Firestore,
 } from 'firebase/firestore';
 
 // Firebase 設定
@@ -36,22 +29,32 @@ const firebaseConfig = {
 };
 
 // Firebase アプリの初期化
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app);
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
+// Auth は遅延初期化
+let authInstance: any = null;
 
-auth = getAuth(app);
-db = getFirestore(app);
+const getAuthInstance = async () => {
+  if (authInstance) return authInstance;
+
+  try {
+    const { getAuth } = await import('firebase/auth');
+    authInstance = getAuth(app);
+    return authInstance;
+  } catch (error) {
+    console.error('Auth initialization error:', error);
+    return null;
+  }
+};
 
 // 匿名認証でサインイン
-export const signInAnonymouslyUser = async (): Promise<User | null> => {
+export const signInAnonymouslyUser = async () => {
   try {
+    const auth = await getAuthInstance();
+    if (!auth) return null;
+
+    const { signInAnonymously } = await import('firebase/auth');
     const result = await signInAnonymously(auth);
     return result.user;
   } catch (error) {
@@ -61,20 +64,33 @@ export const signInAnonymouslyUser = async (): Promise<User | null> => {
 };
 
 // 認証状態の監視
-export const subscribeToAuthState = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, callback);
+export const subscribeToAuthState = (callback: (user: any) => void) => {
+  let unsubscribe = () => {};
+
+  getAuthInstance().then(async (auth) => {
+    if (!auth) {
+      callback(null);
+      return;
+    }
+
+    const { onAuthStateChanged } = await import('firebase/auth');
+    unsubscribe = onAuthStateChanged(auth, callback);
+  }).catch(() => {
+    callback(null);
+  });
+
+  return () => unsubscribe();
 };
 
 // Firestore ヘルパー関数
 export const firestoreHelpers = {
-  // ユーザードキュメントの取得・作成
   async getOrCreateUser(userId: string, data?: { prefecture?: string; city?: string }) {
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
       const newUser = {
-        email: auth.currentUser?.email || null,
+        email: null,
         prefecture: data?.prefecture || '東京都',
         city: data?.city || '千代田区',
         createdAt: Timestamp.now(),
@@ -86,7 +102,6 @@ export const firestoreHelpers = {
     return { id: userId, ...userSnap.data() };
   },
 
-  // 体調記録の追加
   async addHealthLog(
     userId: string,
     log: {
@@ -105,7 +120,6 @@ export const firestoreHelpers = {
     return docRef.id;
   },
 
-  // 体調記録の取得
   async getHealthLogs(userId: string, limitCount: number = 50) {
     const logsRef = collection(db, 'users', userId, 'health_logs');
     const q = query(logsRef, orderBy('createdAt', 'desc'), limit(limitCount));
@@ -117,7 +131,6 @@ export const firestoreHelpers = {
     }));
   },
 
-  // 気象キャッシュの取得
   async getWeatherCache(prefecture: string, city: string) {
     const cacheId = `${prefecture}_${city}`;
     const cacheRef = doc(db, 'weather_cache', cacheId);
@@ -139,5 +152,5 @@ export const firestoreHelpers = {
   },
 };
 
-export { auth, db, Timestamp };
+export { db, Timestamp };
 export default app;
