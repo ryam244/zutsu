@@ -2,13 +2,11 @@
  * Zutsu-Log 型定義
  */
 
-// ユーザー
+// ユーザー（Firebase Auth）
 export interface User {
   id: string;
   email: string | null;
-  prefecture: string;
-  city: string;
-  createdAt: string;
+  isAnonymous: boolean;
 }
 
 // 体調レベル

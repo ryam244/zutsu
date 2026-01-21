@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { colors, fontSize, fontWeight, spacing, borderRadius, shadows } from '@/theme';
 import { useAppStore } from '@/stores/appStore';
+import { firestoreHelpers } from '@/services/firebase';
 import PressureGraph, { type PressurePoint } from '@/components/dashboard/PressureGraph';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -41,6 +42,7 @@ const SEVERITY_OPTIONS = [
 export default function DashboardScreen() {
   const [selectedSeverity, setSelectedSeverity] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const user = useAppStore((state) => state.user);
   const addHealthLog = useAppStore((state) => state.addHealthLog);
   const settings = useAppStore((state) => state.settings);
 
@@ -50,16 +52,33 @@ export default function DashboardScreen() {
     setSelectedSeverity(level);
     setIsRecording(true);
 
-    // ローカルストレージに保存
-    const newLog = {
-      id: Date.now().toString(),
-      userId: 'local',
-      createdAt: new Date().toISOString(),
+    const now = new Date().toISOString();
+    const logData = {
       severity: level as 0 | 1 | 2 | 3,
       pressureHpa: MOCK_PRESSURE.current,
       memo: null,
       locationPrefecture: settings.location.prefecture,
       locationCity: settings.location.city,
+    };
+
+    // Firestore に保存（ユーザーがログイン済みの場合）
+    let logId = Date.now().toString();
+    if (user?.id) {
+      try {
+        const firestoreId = await firestoreHelpers.addHealthLog(user.id, logData);
+        logId = firestoreId;
+      } catch (error) {
+        console.error('Firestore save error:', error);
+        // エラーでもローカルには保存する
+      }
+    }
+
+    // ローカルストレージにも保存
+    const newLog = {
+      id: logId,
+      userId: user?.id || 'local',
+      createdAt: now,
+      ...logData,
     };
 
     addHealthLog(newLog);
