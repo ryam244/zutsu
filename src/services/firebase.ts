@@ -1,20 +1,16 @@
 /**
  * Firebase 初期化・設定
- *
- * 使用前に以下の設定が必要:
- * 1. Firebase Console でプロジェクトを作成
- * 2. Firebase Authentication を有効化
- * 3. Firestore Database を作成
- * 4. google-services.json (Android) / GoogleService-Info.plist (iOS) を配置
  */
 
-import { initializeApp, getApps, getApp
- } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeAuth,
   getAuth,
   signInAnonymously,
   onAuthStateChanged,
+  getReactNativePersistence,
   type User,
+  type Auth,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -25,30 +21,37 @@ import {
   getDocs,
   setDoc,
   query,
-  where,
   orderBy,
   limit,
   Timestamp,
-  type DocumentData,
 } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase 設定
-// TODO: 実際の設定値に置き換えてください
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'YOUR_API_KEY',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'YOUR_AUTH_DOMAIN',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'YOUR_PROJECT_ID',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || 'YOUR_SENDER_ID',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || 'YOUR_APP_ID',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '',
 };
 
 // Firebase アプリの初期化（重複防止）
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// サービスのエクスポート
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Auth の初期化（React Native 用）
+let auth: Auth;
+try {
+  auth = getAuth(app);
+} catch {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+}
+
+// Firestore の初期化
+const db = getFirestore(app);
 
 // 匿名認証でサインイン
 export const signInAnonymouslyUser = async (): Promise<User | null> => {
@@ -112,9 +115,9 @@ export const firestoreHelpers = {
     const q = query(logsRef, orderBy('createdAt', 'desc'), limit(limitCount));
     const snapshot = await getDocs(q);
 
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
+    return snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
     }));
   },
 
@@ -141,5 +144,5 @@ export const firestoreHelpers = {
   },
 };
 
-export { Timestamp };
+export { auth, db, Timestamp };
 export default app;
