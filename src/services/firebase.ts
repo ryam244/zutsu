@@ -3,7 +3,7 @@
  * Expo + Firebase Web SDK 互換
  */
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -17,6 +17,16 @@ import {
   limit,
   Timestamp,
 } from 'firebase/firestore';
+import {
+  initializeAuth,
+  getAuth,
+  getReactNativePersistence,
+  signInAnonymously,
+  onAuthStateChanged,
+  Auth,
+  User,
+} from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase 設定
 const firebaseConfig = {
@@ -29,32 +39,25 @@ const firebaseConfig = {
 };
 
 // Firebase アプリの初期化
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let app: FirebaseApp;
+let auth: Auth;
+
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+  // React Native では initializeAuth を使用
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} else {
+  app = getApp();
+  auth = getAuth(app);
+}
+
 const db = getFirestore(app);
-
-// Auth は遅延初期化
-let authInstance: any = null;
-
-const getAuthInstance = async () => {
-  if (authInstance) return authInstance;
-
-  try {
-    const { getAuth } = await import('firebase/auth');
-    authInstance = getAuth(app);
-    return authInstance;
-  } catch (error) {
-    console.error('Auth initialization error:', error);
-    return null;
-  }
-};
 
 // 匿名認証でサインイン
 export const signInAnonymouslyUser = async () => {
   try {
-    const auth = await getAuthInstance();
-    if (!auth) return null;
-
-    const { signInAnonymously } = await import('firebase/auth');
     const result = await signInAnonymously(auth);
     return result.user;
   } catch (error) {
@@ -64,22 +67,8 @@ export const signInAnonymouslyUser = async () => {
 };
 
 // 認証状態の監視
-export const subscribeToAuthState = (callback: (user: any) => void) => {
-  let unsubscribe = () => {};
-
-  getAuthInstance().then(async (auth) => {
-    if (!auth) {
-      callback(null);
-      return;
-    }
-
-    const { onAuthStateChanged } = await import('firebase/auth');
-    unsubscribe = onAuthStateChanged(auth, callback);
-  }).catch(() => {
-    callback(null);
-  });
-
-  return () => unsubscribe();
+export const subscribeToAuthState = (callback: (user: User | null) => void) => {
+  return onAuthStateChanged(auth, callback);
 };
 
 // Firestore ヘルパー関数
@@ -152,5 +141,5 @@ export const firestoreHelpers = {
   },
 };
 
-export { db, Timestamp };
+export { db, auth, Timestamp };
 export default app;
