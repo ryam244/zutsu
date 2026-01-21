@@ -18,8 +18,9 @@ const openweatherApiKey = defineString('OPENWEATHER_API_KEY');
 // キャッシュ有効期限（6時間）
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-// OpenWeatherMap API設定
-const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
+// OpenWeatherMap API設定（無料版 2.5 API）
+const OPENWEATHER_CURRENT_URL = 'https://api.openweathermap.org/data/2.5/weather';
+const OPENWEATHER_FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 
 // 都道府県座標マッピング
 const PREFECTURE_COORDINATES: Record<string, { lat: number; lon: number }> = {
@@ -88,44 +89,63 @@ const calculateChangeRate = (current: number, previous: number): number => {
   return ((current - previous) / previous) * 100;
 };
 
-// OpenWeatherMapからデータを取得
-async function fetchFromOpenWeather(lat: number, lon: number, apiKey: string) {
-  const url = `${OPENWEATHER_BASE_URL}?lat=${lat}&lon=${lon}&exclude=minutely,daily,alerts&units=metric&appid=${apiKey}`;
-
+// OpenWeatherMapから現在の天気を取得
+async function fetchCurrentWeather(lat: number, lon: number, apiKey: string) {
+  const url = `${OPENWEATHER_CURRENT_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`OpenWeatherMap API error: ${response.status}`);
+    throw new Error(`OpenWeatherMap Current API error: ${response.status}`);
   }
-
   return response.json();
 }
 
-// 気象データを変換
-function transformWeatherData(data: any) {
-  const currentPressure = data.current?.pressure || 1013;
-  const previousPressure = data.hourly?.[1]?.pressure || currentPressure;
-  const changeRate = calculateChangeRate(currentPressure, previousPressure);
+// OpenWeatherMapから予報を取得（3時間ごと、5日間）
+async function fetchForecast(lat: number, lon: number, apiKey: string) {
+  const url = `${OPENWEATHER_FORECAST_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`OpenWeatherMap Forecast API error: ${response.status}`);
+  }
+  return response.json();
+}
+
+// 気象データを変換（2.5 API用）
+function transformWeatherData(currentData: any, forecastData: any) {
+  const currentPressure = currentData.main?.pressure || 1013;
+
+  // 予報データから最初の気圧を取得して変化を計算
+  const forecastList = forecastData.list || [];
+  const nextPressure = forecastList[0]?.main?.pressure || currentPressure;
+  const changeRate = calculateChangeRate(nextPressure, currentPressure);
   const status = getPressureStatus(changeRate);
 
-  const forecast = (data.hourly || []).slice(0, 24).map((hour: any, index: number) => {
-    const time = new Date(hour.dt * 1000);
+  // 3時間ごとの予報を24時間分（8エントリ）取得
+  const forecast = forecastList.slice(0, 8).map((item: any, index: number) => {
+    const time = new Date(item.dt * 1000);
     const timeStr = index === 0 ? '現在' : `${time.getHours().toString().padStart(2, '0')}:00`;
-    const hourPressure = hour.pressure;
-    const prevHourPressure = index > 0 ? data.hourly[index - 1].pressure : hourPressure;
-    const hourChangeRate = calculateChangeRate(hourPressure, prevHourPressure);
+    const itemPressure = item.main?.pressure || 1013;
+    const prevPressure = index > 0 ? (forecastList[index - 1]?.main?.pressure || itemPressure) : currentPressure;
+    const itemChangeRate = calculateChangeRate(itemPressure, prevPressure);
 
     return {
       time: timeStr,
-      pressure: hourPressure,
-      status: getPressureStatus(hourChangeRate),
+      pressure: itemPressure,
+      status: getPressureStatus(itemChangeRate),
     };
+  });
+
+  // 現在のデータを先頭に追加
+  forecast.unshift({
+    time: '現在',
+    pressure: currentPressure,
+    status: 'stable' as PressureStatus,
   });
 
   return {
     pressure: currentPressure,
     pressureChange: Math.round(changeRate * 10) / 10,
     status,
-    forecast,
+    forecast: forecast.slice(0, 24),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -176,11 +196,14 @@ export const getWeather = onCall(
         throw new HttpsError('failed-precondition', 'API key not configured');
       }
 
-      // OpenWeatherMapから取得
+      // OpenWeatherMapから取得（現在の天気 + 予報）
       console.log(`Fetching from OpenWeatherMap for ${prefecture}`);
       const coords = PREFECTURE_COORDINATES[prefecture];
-      const rawData = await fetchFromOpenWeather(coords.lat, coords.lon, apiKey);
-      const weatherData = transformWeatherData(rawData);
+      const [currentData, forecastData] = await Promise.all([
+        fetchCurrentWeather(coords.lat, coords.lon, apiKey),
+        fetchForecast(coords.lat, coords.lon, apiKey),
+      ]);
+      const weatherData = transformWeatherData(currentData, forecastData);
 
       // キャッシュに保存
       await cacheRef.set({
