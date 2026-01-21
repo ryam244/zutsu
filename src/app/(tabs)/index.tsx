@@ -1,15 +1,16 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { colors, fontSize, fontWeight, spacing, borderRadius, shadows } from '@/theme';
 import { useAppStore } from '@/stores/appStore';
 import { firestoreHelpers } from '@/services/firebase';
+import { useWeather } from '@/hooks/useWeather';
 import PressureGraph, { type PressurePoint } from '@/components/dashboard/PressureGraph';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRAPH_WIDTH = SCREEN_WIDTH - spacing.xl * 2 - spacing['2xl'] * 2;
 
-// モックの気圧データ（24時間分）
+// フォールバック用モックデータ
 const MOCK_PRESSURE_DATA: PressurePoint[] = [
   { time: '現在', pressure: 1013, status: 'stable' },
   { time: '09:00', pressure: 1015, status: 'stable' },
@@ -22,15 +23,6 @@ const MOCK_PRESSURE_DATA: PressurePoint[] = [
   { time: '06:00', pressure: 1015, status: 'stable' },
 ];
 
-// 仮の気圧情報
-const MOCK_PRESSURE = {
-  current: 1013,
-  change: -5,
-  status: 'danger' as const,
-  forecast: '2時間後に気圧が急低下します',
-  advice: '大幅な気圧の変化が予想されます。早めの休息を心がけてください。',
-};
-
 // 体調レベル
 const SEVERITY_OPTIONS = [
   { level: 0, emoji: '😊', label: 'なし' },
@@ -39,12 +31,59 @@ const SEVERITY_OPTIONS = [
   { level: 3, emoji: '🤮', label: 'かなり痛い' },
 ] as const;
 
+// ステータスに応じたバッジ設定
+const STATUS_CONFIG = {
+  danger: {
+    label: '気圧警戒',
+    icon: '⚠️',
+    changeIcon: '📉',
+    changeLabel: '急変動中',
+    bgColor: 'rgba(252, 165, 165, 0.1)',
+    borderColor: 'rgba(252, 165, 165, 0.3)',
+    textColor: colors.dangerText,
+  },
+  caution: {
+    label: '注意',
+    icon: '⚡',
+    changeIcon: '📊',
+    changeLabel: '変動中',
+    bgColor: 'rgba(253, 224, 71, 0.1)',
+    borderColor: 'rgba(253, 224, 71, 0.3)',
+    textColor: colors.cautionText,
+  },
+  stable: {
+    label: '安定',
+    icon: '✨',
+    changeIcon: '📈',
+    changeLabel: '安定',
+    bgColor: 'rgba(147, 197, 253, 0.1)',
+    borderColor: 'rgba(147, 197, 253, 0.3)',
+    textColor: colors.stableText,
+  },
+};
+
 export default function DashboardScreen() {
   const [selectedSeverity, setSelectedSeverity] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const user = useAppStore((state) => state.user);
   const addHealthLog = useAppStore((state) => state.addHealthLog);
   const settings = useAppStore((state) => state.settings);
+
+  // 気象データを取得
+  const { weather, isLoading, alertMessage, advice } = useWeather();
+
+  // 気圧データ（API or モック）
+  const currentPressure = weather?.pressure ?? 1013;
+  const pressureChange = weather?.pressureChange ?? 0;
+  const pressureStatus = weather?.status ?? 'stable';
+  const statusConfig = STATUS_CONFIG[pressureStatus];
+
+  // グラフ用データ
+  const graphData: PressurePoint[] = weather?.forecast?.slice(0, 9).map((f) => ({
+    time: f.time,
+    pressure: f.pressure,
+    status: f.status,
+  })) ?? MOCK_PRESSURE_DATA;
 
   const handleSeverityPress = async (level: number) => {
     if (isRecording) return;
@@ -55,7 +94,7 @@ export default function DashboardScreen() {
     const now = new Date().toISOString();
     const logData = {
       severity: level as 0 | 1 | 2 | 3,
-      pressureHpa: MOCK_PRESSURE.current,
+      pressureHpa: currentPressure,
       memo: null,
       locationPrefecture: settings.location.prefecture,
       locationCity: settings.location.city,
@@ -69,7 +108,6 @@ export default function DashboardScreen() {
         logId = firestoreId;
       } catch (error) {
         console.error('Firestore save error:', error);
-        // エラーでもローカルには保存する
       }
     }
 
@@ -83,7 +121,6 @@ export default function DashboardScreen() {
 
     addHealthLog(newLog);
 
-    // フィードバック後にリセット
     setTimeout(() => {
       setSelectedSeverity(null);
       setIsRecording(false);
@@ -114,15 +151,30 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* ローディング */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>気象データを取得中...</Text>
+          </View>
+        )}
+
         {/* 気圧警戒アラート */}
         <View style={styles.alertSection}>
-          <View style={styles.alertBadge}>
-            <Text style={styles.alertBadgeIcon}>⚠️</Text>
-            <Text style={styles.alertBadgeText}>気圧警戒</Text>
+          <View style={[styles.alertBadge, {
+            backgroundColor: statusConfig.bgColor,
+            borderColor: statusConfig.borderColor,
+          }]}>
+            <Text style={styles.alertBadgeIcon}>{statusConfig.icon}</Text>
+            <Text style={[styles.alertBadgeText, { color: statusConfig.textColor }]}>
+              {statusConfig.label}
+            </Text>
           </View>
-          <Text style={styles.alertTitle}>{MOCK_PRESSURE.forecast}</Text>
+          <Text style={styles.alertTitle}>
+            {alertMessage ?? '気象データを取得中...'}
+          </Text>
           <Text style={styles.alertDescription}>
-            {MOCK_PRESSURE.advice}リスク：高
+            {advice ?? ''}
           </Text>
         </View>
 
@@ -132,21 +184,23 @@ export default function DashboardScreen() {
             <View>
               <Text style={styles.pressureLabel}>現在の気圧</Text>
               <Text style={styles.pressureValue}>
-                {MOCK_PRESSURE.current}{' '}
+                {currentPressure}{' '}
                 <Text style={styles.pressureUnit}>hPa</Text>
               </Text>
             </View>
             <View style={styles.pressureChange}>
-              <View style={styles.pressureChangeBadge}>
-                <Text style={styles.pressureChangeIcon}>📉</Text>
-                <Text style={styles.pressureChangeText}>{MOCK_PRESSURE.change}%</Text>
+              <View style={[styles.pressureChangeBadge, { backgroundColor: statusConfig.bgColor }]}>
+                <Text style={styles.pressureChangeIcon}>{statusConfig.changeIcon}</Text>
+                <Text style={[styles.pressureChangeText, { color: statusConfig.textColor }]}>
+                  {pressureChange > 0 ? '+' : ''}{pressureChange}%
+                </Text>
               </View>
-              <Text style={styles.pressureChangeLabel}>急降下中</Text>
+              <Text style={styles.pressureChangeLabel}>{statusConfig.changeLabel}</Text>
             </View>
           </View>
 
           {/* 気圧グラフ */}
-          <PressureGraph data={MOCK_PRESSURE_DATA} width={GRAPH_WIDTH} />
+          <PressureGraph data={graphData} width={GRAPH_WIDTH} />
 
           {/* 凡例 */}
           <View style={styles.legend}>
@@ -235,6 +289,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing['2xl'],
     paddingBottom: spacing['4xl'],
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  loadingText: {
+    fontSize: fontSize.sm,
+    color: colors.textSub,
+  },
   alertSection: {
     marginBottom: spacing['3xl'],
   },
@@ -245,10 +310,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
-    backgroundColor: 'rgba(252, 165, 165, 0.1)',
     borderRadius: borderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(252, 165, 165, 0.3)',
     marginBottom: spacing.lg,
   },
   alertBadgeIcon: {
@@ -257,7 +320,6 @@ const styles = StyleSheet.create({
   alertBadgeText: {
     fontSize: fontSize.xs,
     fontWeight: fontWeight.bold,
-    color: colors.dangerText,
     letterSpacing: 1,
   },
   alertTitle: {
@@ -314,7 +376,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    backgroundColor: 'rgba(252, 165, 165, 0.1)',
     borderRadius: borderRadius.full,
   },
   pressureChangeIcon: {
@@ -323,7 +384,6 @@ const styles = StyleSheet.create({
   pressureChangeText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.bold,
-    color: colors.dangerText,
   },
   pressureChangeLabel: {
     fontSize: 9,
