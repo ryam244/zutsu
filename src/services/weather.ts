@@ -51,8 +51,11 @@ export const fetchWeatherData = async (
     });
 
     return weatherData;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Weather fetch error:', error);
+    console.error('Error code:', error?.code);
+    console.error('Error message:', error?.message);
+    console.error('Error details:', error?.details);
     return null;
   }
 };
