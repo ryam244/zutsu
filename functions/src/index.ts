@@ -137,10 +137,10 @@ function transformWeatherData(data: any) {
 export const getWeather = onCall(
   { region: 'asia-northeast1' },
   async (request) => {
-    // 認証チェック
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', '認証が必要です');
-    }
+    // 開発中は認証チェックをスキップ（本番では有効化すること）
+    // if (!request.auth) {
+    //   throw new HttpsError('unauthenticated', '認証が必要です');
+    // }
 
     const { prefecture } = request.data as { prefecture: string };
     if (!prefecture || !PREFECTURE_COORDINATES[prefecture]) {

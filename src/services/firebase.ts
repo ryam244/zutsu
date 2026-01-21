@@ -31,69 +31,24 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-// Auth は遅延初期化（Expo Go互換性のため）
-let authPromise: Promise<any> | null = null;
+// 開発用の仮ユーザーID（Expo Go互換性のため、Auth無しで動作）
+const DEV_USER_ID = 'dev-user-001';
 
-const getAuthLazy = async () => {
-  if (!authPromise) {
-    authPromise = (async () => {
-      try {
-        const authModule = await import('firebase/auth');
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-
-        // 既に初期化済みかチェック
-        try {
-          return authModule.getAuth(app);
-        } catch {
-          // 初期化されていない場合は initializeAuth を使用
-          return authModule.initializeAuth(app, {
-            persistence: authModule.getReactNativePersistence(AsyncStorage),
-          });
-        }
-      } catch (error) {
-        console.error('Auth lazy init error:', error);
-        return null;
-      }
-    })();
-  }
-  return authPromise;
-};
-
-// 匿名認証でサインイン
+// 匿名認証でサインイン（開発中は仮ユーザーを返す）
 export const signInAnonymouslyUser = async () => {
-  try {
-    const auth = await getAuthLazy();
-    if (!auth) {
-      console.log('Auth not available, skipping sign in');
-      return null;
-    }
-
-    const { signInAnonymously } = await import('firebase/auth');
-    const result = await signInAnonymously(auth);
-    return result.user;
-  } catch (error) {
-    console.error('Anonymous sign in error:', error);
-    return null;
-  }
+  // Expo Go環境ではFirebase Authが動作しないため、仮ユーザーを返す
+  console.log('Using development user (Firebase Auth not available in Expo Go)');
+  return { uid: DEV_USER_ID } as { uid: string };
 };
 
-// 認証状態の監視
+// 認証状態の監視（開発中は仮ユーザーを即座に返す）
 export const subscribeToAuthState = (callback: (user: any) => void) => {
-  let unsubscribe = () => {};
+  // 即座に仮ユーザーを返す
+  setTimeout(() => {
+    callback({ uid: DEV_USER_ID });
+  }, 100);
 
-  getAuthLazy().then(async (auth) => {
-    if (!auth) {
-      callback(null);
-      return;
-    }
-
-    const { onAuthStateChanged } = await import('firebase/auth');
-    unsubscribe = onAuthStateChanged(auth, callback);
-  }).catch(() => {
-    callback(null);
-  });
-
-  return () => unsubscribe();
+  return () => {};
 };
 
 // Firestore ヘルパー関数
