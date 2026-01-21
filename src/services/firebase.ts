@@ -2,13 +2,12 @@
  * Firebase 初期化・設定
  */
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import {
   initializeAuth,
-  getAuth,
+  getReactNativePersistence,
   signInAnonymously,
   onAuthStateChanged,
-  getReactNativePersistence,
   type User,
   type Auth,
 } from 'firebase/auth';
@@ -24,6 +23,7 @@ import {
   orderBy,
   limit,
   Timestamp,
+  type Firestore,
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -37,21 +37,32 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '',
 };
 
-// Firebase アプリの初期化（重複防止）
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// Auth の初期化（React Native 用）
+// シングルトンパターンでFirebaseを初期化
+let app: FirebaseApp;
 let auth: Auth;
-try {
-  auth = getAuth(app);
-} catch {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+let db: Firestore;
+
+function initializeFirebase() {
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+    db = getFirestore(app);
+  } else {
+    app = getApp();
+    // 既に初期化されている場合は、既存のインスタンスを使用
+    // @ts-ignore - Firebase内部のauth取得
+    auth = (app as any)._container?.getProvider('auth')?.getImmediate() ||
+      initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    db = getFirestore(app);
+  }
 }
 
-// Firestore の初期化
-const db = getFirestore(app);
+// 初期化を実行
+initializeFirebase();
 
 // 匿名認証でサインイン
 export const signInAnonymouslyUser = async (): Promise<User | null> => {
