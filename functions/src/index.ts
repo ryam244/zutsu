@@ -216,9 +216,10 @@ export const getWeather = onCall(
         ...weatherData,
         fromCache: false,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Weather fetch error:', error);
-      throw new HttpsError('internal', '気象データの取得に失敗しました');
+      const errorMessage = error?.message || String(error);
+      throw new HttpsError('internal', `気象データの取得に失敗しました: ${errorMessage}`);
     }
   }
 );
