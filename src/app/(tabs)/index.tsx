@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     padding: spacing['2xl'],
     marginBottom: spacing['3xl'],
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.1)',
+    borderColor: 'rgba(48, 171, 232, 0.1)',
     ...shadows.sm,
   },
   pressureHeader: {
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   },
   healthButtonSelected: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(48, 171, 232, 0.05)',
   },
   healthEmoji: {
     fontSize: 36,

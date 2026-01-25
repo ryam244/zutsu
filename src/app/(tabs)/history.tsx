@@ -401,10 +401,10 @@ const styles = StyleSheet.create({
   insightCard: {
     marginTop: spacing.xl,
     padding: spacing.lg,
-    backgroundColor: 'rgba(96, 165, 250, 0.05)',
+    backgroundColor: 'rgba(48, 171, 232, 0.05)',
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.1)',
+    borderColor: 'rgba(48, 171, 232, 0.1)',
   },
   insightText: {
     fontSize: fontSize.xs,
@@ -461,8 +461,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   timelineIconNormal: {
-    backgroundColor: 'rgba(100, 181, 246, 0.1)',
-    borderColor: 'rgba(100, 181, 246, 0.2)',
+    backgroundColor: 'rgba(48, 171, 232, 0.1)',
+    borderColor: 'rgba(48, 171, 232, 0.2)',
   },
   timelineIconDanger: {
     backgroundColor: 'rgba(240, 98, 146, 0.1)',
@@ -499,10 +499,10 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    backgroundColor: 'rgba(100, 181, 246, 0.1)',
+    backgroundColor: 'rgba(48, 171, 232, 0.1)',
     borderRadius: borderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(100, 181, 246, 0.2)',
+    borderColor: 'rgba(48, 171, 232, 0.2)',
   },
   statusBadgeDanger: {
     backgroundColor: 'rgba(252, 165, 165, 0.1)',

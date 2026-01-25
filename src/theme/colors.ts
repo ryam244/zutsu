@@ -5,14 +5,14 @@
  */
 
 export const colors = {
-  // プライマリカラー
-  primary: '#4A90E2',
-  primaryLight: '#60a5fa',
-  primaryDark: '#2563eb',
+  // プライマリカラー（Zutsu-Log デザインシステム）
+  primary: '#30abe8',
+  primaryLight: '#e0f7fa',
+  primaryDark: '#0e171b',
 
   // アクセントカラー
-  accent: '#64B5F6',
-  accentMint: '#6ee7b7',
+  accent: '#30abe8',
+  accentMint: '#e0f7fa',
 
   // ステータスカラー - 気圧状態
   danger: '#fca5a5',        // 警戒（気圧急降下）- 薄い赤
@@ -20,8 +20,10 @@ export const colors = {
   dangerText: '#fb7185',    // 警戒テキスト
   caution: '#fde047',       // 注意 - イエロー
   cautionOrange: '#FFB74D', // 中度 - オレンジ
+  cautionText: '#d97706',   // 注意テキスト（amber-600）
   stable: '#93c5fd',        // 安定 - ライトブルー
   stableLight: '#bfdbfe',   // 安定（薄い）
+  stableText: '#0ea5e9',    // 安定テキスト（sky-500）
 
   // 成功・アクティブ
   success: '#4ADE80',       // トグルON、成功
@@ -92,8 +94,8 @@ export const getSeverityColor = (level: SeverityLevel) => {
     case 0: // なし
       return {
         bg: colors.stable,
-        bgLight: 'rgba(100, 181, 246, 0.1)',
-        border: 'rgba(100, 181, 246, 0.2)',
+        bgLight: 'rgba(147, 197, 253, 0.1)',
+        border: 'rgba(147, 197, 253, 0.2)',
       };
     case 1: // 少し痛む
       return {

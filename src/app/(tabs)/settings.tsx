@@ -114,7 +114,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>地域と予報</Text>
           <View style={styles.sectionContent}>
             <Pressable style={styles.settingItem} onPress={() => setShowLocationPicker(true)}>
-              <View style={[styles.settingIcon, { backgroundColor: 'rgba(96, 165, 250, 0.1)' }]}>
+              <View style={[styles.settingIcon, { backgroundColor: 'rgba(48, 171, 232, 0.1)' }]}>
                 <Text style={styles.settingIconText}>📍</Text>
               </View>
               <View style={styles.settingInfo}>
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius['2xl'],
     padding: spacing['2xl'],
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.1)',
+    borderColor: 'rgba(48, 171, 232, 0.1)',
   },
   premiumContent: {
     flex: 1,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     color: colors.textDark,
   },
   sliderBadge: {
-    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    backgroundColor: 'rgba(48, 171, 232, 0.1)',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     height: '100%',
-    backgroundColor: 'rgba(96, 165, 250, 0.3)',
+    backgroundColor: 'rgba(48, 171, 232, 0.3)',
     borderRadius: borderRadius.full,
   },
   sliderThumb: {
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   modalItemSelected: {
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(48, 171, 232, 0.05)',
   },
   modalItemText: {
     fontSize: fontSize.base,
