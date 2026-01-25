@@ -4,6 +4,7 @@
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -11,8 +12,8 @@ initializeApp();
 
 const db = getFirestore();
 
-// 環境変数から直接取得（defineStringの代わり）
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || '';
+// 環境変数からAPIキーを取得（.envファイルから読み込み）
+const openweatherApiKey = defineString('OPENWEATHER_API_KEY');
 
 // キャッシュ有効期限（6時間）
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -193,13 +194,13 @@ export const getWeather = onCall(
       }
 
       // APIキーを取得
-      const apiKey = OPENWEATHER_API_KEY;
+      const apiKey = openweatherApiKey.value();
+      console.log('API Key exists:', !!apiKey);
+      console.log('Prefecture:', prefecture);
+
       if (!apiKey) {
         throw new HttpsError('failed-precondition', 'API key not configured');
       }
-
-      console.log('API Key exists:', !!apiKey);
-      console.log('Prefecture:', prefecture);
 
       // OpenWeatherMapから取得（現在の天気 + 予報）
       console.log(`Fetching from OpenWeatherMap for ${prefecture}`);
