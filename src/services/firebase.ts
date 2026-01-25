@@ -45,7 +45,7 @@ export const signInAnonymouslyUser = async () => {
 export const subscribeToAuthState = (callback: (user: any) => void) => {
   // 即座に仮ユーザーを返す
   setTimeout(() => {
-    callback({ uid: DEV_USER_ID });
+    callback({ uid: DEV_USER_ID, email: null, isAnonymous: true });
   }, 100);
 
   return () => {};
