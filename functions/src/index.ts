@@ -4,19 +4,32 @@
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { defineString } from 'firebase-functions/params';
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-initializeApp();
+// テスト用：最小限の関数
+export const getWeather = onCall(
+  { region: 'asia-northeast1' },
+  async (request) => {
+    console.log('=== Function called! ===');
 
-const db = getFirestore();
+    const { prefecture } = request.data as { prefecture?: string };
+    console.log('Prefecture:', prefecture);
 
-// 環境変数からAPIキーを取得（.envファイルから読み込み）
-const openweatherApiKey = defineString('OPENWEATHER_API_KEY');
-
-// キャッシュ有効期限（6時間）
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+    // まずはハードコードされたデータを返す
+    return {
+      pressure: 1013,
+      pressureChange: 0,
+      status: 'stable',
+      forecast: [
+        { time: '現在', pressure: 1013, status: 'stable' },
+        { time: '03:00', pressure: 1012, status: 'stable' },
+        { time: '06:00', pressure: 1011, status: 'stable' },
+      ],
+      updatedAt: new Date().toISOString(),
+      fromCache: false,
+      testMode: true,
+    };
+  }
+);
 
 // OpenWeatherMap API設定（無料版 2.5 API）
 const OPENWEATHER_CURRENT_URL = 'https://api.openweathermap.org/data/2.5/weather';
