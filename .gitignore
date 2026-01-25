@@ -33,8 +33,9 @@ yarn-error.*
 # TypeScript
 *.tsbuildinfo
 
-# Firebase Functions build output
-functions/lib/
+# Firebase Functions build output (except placeholder)
+functions/lib/*
+!functions/lib/index.js
 
 # Testing
 coverage/
