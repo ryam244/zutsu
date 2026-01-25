@@ -9,7 +9,8 @@ config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
 // functions ディレクトリを除外（Cloud Functions用のコードをバンドルしない）
 config.resolver.blockList = [
   ...(config.resolver.blockList || []),
-  new RegExp(path.resolve(__dirname, 'functions') + '/.*'),
+  /functions\/.*/,
+  /.*\/functions\/.*/,
 ];
 
 module.exports = config;
