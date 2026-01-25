@@ -3,46 +3,52 @@
  * Cloud Functions経由でキャッシュ付きデータを取得
  */
 
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
-import app from './firebase';
 import type { WeatherData } from '@/types';
 
-// Functions インスタンス（asia-northeast1 リージョン）
-const functions = getFunctions(app, 'asia-northeast1');
+// Cloud Functions URL
+const FUNCTIONS_URL = 'https://asia-northeast1-zutsu-e1cc9.cloudfunctions.net/getWeather';
 
-// 開発環境ではエミュレータに接続（必要な場合）
-// connectFunctionsEmulator(functions, 'localhost', 5001);
-
-// ローカルキャッシュ（Cloud Functionsのキャッシュに加えて、アプリ内でも短時間キャッシュ）
+// ローカルキャッシュ
 interface CacheEntry {
   data: WeatherData;
   timestamp: number;
 }
 
 const localCache: Map<string, CacheEntry> = new Map();
-const LOCAL_CACHE_TTL = 5 * 60 * 1000; // 5分（Cloud Functions側は6時間）
+const LOCAL_CACHE_TTL = 5 * 60 * 1000; // 5分
 
-// Cloud Functionを呼び出して気象データを取得
+// Cloud Functionを呼び出して気象データを取得（直接HTTP）
 export const fetchWeatherData = async (
   prefecture: string,
   _city?: string
 ): Promise<WeatherData | null> => {
   const cacheKey = prefecture;
 
-  // ローカルキャッシュチェック（頻繁なAPI呼び出しを防ぐ）
+  // ローカルキャッシュチェック
   const cached = localCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < LOCAL_CACHE_TTL) {
     return cached.data;
   }
 
   try {
-    const getWeather = httpsCallable<{ prefecture: string }, WeatherData & { fromCache?: boolean }>(
-      functions,
-      'getWeather'
-    );
+    console.log('Fetching weather for:', prefecture);
 
-    const result = await getWeather({ prefecture });
-    const weatherData = result.data;
+    const response = await fetch(FUNCTIONS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: { prefecture } }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const json = await response.json();
+    console.log('Response:', JSON.stringify(json));
+
+    const weatherData = json.result as WeatherData;
 
     // ローカルキャッシュに保存
     localCache.set(cacheKey, {
@@ -53,9 +59,7 @@ export const fetchWeatherData = async (
     return weatherData;
   } catch (error: any) {
     console.error('Weather fetch error:', error);
-    console.error('Error code:', error?.code);
     console.error('Error message:', error?.message);
-    console.error('Error details:', error?.details);
     return null;
   }
 };
