@@ -1,8 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Modal, FlatList, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { colors, fontSize, fontWeight, spacing, borderRadius, shadows, layout } from '@/theme';
 import { useAppStore } from '@/stores/appStore';
+
+// 外部リンク
+const LINKS = {
+  privacyPolicy: 'https://ryam.notion.site/2f313c5594368019b07be50135a9fb0b',
+  termsOfService: 'https://ryam.notion.site/2f313c55943680e1a6a0e24f1276fdd7',
+};
 
 // 都道府県リスト
 const PREFECTURES = [
@@ -257,11 +263,11 @@ export default function SettingsScreen() {
         {/* フッター */}
         <View style={styles.footer}>
           <View style={styles.footerLinks}>
-            <Pressable>
+            <Pressable onPress={() => Linking.openURL(LINKS.privacyPolicy)}>
               <Text style={styles.footerLink}>プライバシーポリシー</Text>
             </Pressable>
-            <Pressable>
-              <Text style={styles.footerLink}>ヘルプセンター</Text>
+            <Pressable onPress={() => Linking.openURL(LINKS.termsOfService)}>
+              <Text style={styles.footerLink}>利用規約</Text>
             </Pressable>
           </View>
           <Text style={styles.version}>頭痛ログ バージョン 1.0.0</Text>
