@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "頭痛ログ",
+  "CFBundleName": "頭痛ログ",
+  "NSLocationWhenInUseUsageDescription": "現在地の気圧情報を取得するために位置情報を使用します"
+}

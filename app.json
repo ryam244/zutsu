@@ -11,21 +11,37 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F8FAFC"
+      "backgroundColor": "#e0f7fa"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.zutsulog.app",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "現在地の気圧情報を取得するために位置情報を使用します"
+        "NSLocationWhenInUseUsageDescription": "現在地の気圧情報を取得するために位置情報を使用します",
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleDevelopmentRegion": "ja",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F8FAFC"
+        "backgroundColor": "#e0f7fa"
       },
       "package": "com.zutsulog.app",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION"
       ]
@@ -41,12 +57,22 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#4A90E2"
+          "color": "#30abe8"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "locales": {
+      "ja": "./locales/ja.json"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    },
+    "owner": "your-expo-account"
   }
 }
