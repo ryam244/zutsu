@@ -5,10 +5,14 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors } from '@/theme';
 import { signInAnonymouslyUser, subscribeToAuthState } from '@/services/firebase';
 import { useAppStore } from '@/stores/appStore';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const setUser = useAppStore((state) => state.setUser);
+
+  // 通知の初期化
+  useNotifications();
 
   useEffect(() => {
     // 認証状態を監視
