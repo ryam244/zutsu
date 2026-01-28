@@ -20,6 +20,7 @@ export const colors = {
   dangerText: '#fb7185',    // 警戒テキスト
   caution: '#fde047',       // 注意 - イエロー
   cautionOrange: '#FFB74D', // 中度 - オレンジ
+  cautionText: '#eab308',   // 注意テキスト - ダークイエロー
   stable: '#93c5fd',        // 安定 - ライトブルー
   stableLight: '#bfdbfe',   // 安定（薄い）
 
