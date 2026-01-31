@@ -174,7 +174,7 @@ class _ErrorDisplay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'アプリを再起動してください',
               style: TextStyle(
                 fontSize: 14,

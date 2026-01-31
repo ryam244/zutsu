@@ -115,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   '広告なし、複数地点、詳細分析',
                   style: TextStyle(
                     fontSize: 12,

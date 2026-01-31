@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:zutsu_log/models/weather_data.dart';
 
@@ -22,7 +23,7 @@ class WeatherService {
       final data = result.data['data'] as Map<String, dynamic>;
       return WeatherData.fromJson(data);
     } catch (e) {
-      print('Weather fetch error: $e');
+      debugPrint('Weather fetch error: $e');
       // エラー時はフォールバックデータを返す
       return WeatherData.fallback();
     }

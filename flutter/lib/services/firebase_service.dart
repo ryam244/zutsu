@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:zutsu_log/models/health_log.dart';
@@ -16,7 +17,7 @@ class FirebaseService {
       final result = await _auth.signInAnonymously();
       return result.user;
     } catch (e) {
-      print('Anonymous sign in error: $e');
+      debugPrint('Anonymous sign in error: $e');
       return null;
     }
   }
@@ -77,7 +78,7 @@ class FirebaseService {
 
       return docRef.id;
     } catch (e) {
-      print('Add health log error: $e');
+      debugPrint('Add health log error: $e');
       return null;
     }
   }
@@ -100,7 +101,7 @@ class FirebaseService {
 
       return snapshot.docs.map((doc) => HealthLog.fromFirestore(doc)).toList();
     } catch (e) {
-      print('Get health logs error: $e');
+      debugPrint('Get health logs error: $e');
       return [];
     }
   }
@@ -129,7 +130,7 @@ class FirebaseService {
 
       return data;
     } catch (e) {
-      print('Get weather cache error: $e');
+      debugPrint('Get weather cache error: $e');
       return null;
     }
   }
