@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zutsu_log/theme/app_theme.dart';
 import 'package:zutsu_log/theme/app_colors.dart';
 import 'package:zutsu_log/screens/main_screen.dart';
+import 'package:zutsu_log/providers/app_state.dart';
 
 void main() {
   // グローバルエラーハンドリング
@@ -26,6 +28,9 @@ void main() {
       ),
     );
 
+    // SharedPreferences初期化
+    final sharedPreferences = await SharedPreferences.getInstance();
+
     // Firebase初期化（エラーハンドリング付き）
     bool firebaseInitialized = false;
     try {
@@ -38,6 +43,9 @@ void main() {
 
     runApp(
       ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        ],
         child: ZutsuLogApp(firebaseInitialized: firebaseInitialized),
       ),
     );
